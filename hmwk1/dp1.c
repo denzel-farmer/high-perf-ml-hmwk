@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     }
     
     struct timespec start, end;
-    double run_duration, total_duration = 0;
+    double total_duration = 0;
     for (unsigned long j = 0; j < count; j++) { 
        
         clock_gettime(CLOCK_MONOTONIC, &start); 
@@ -62,25 +62,23 @@ int main(int argc, char *argv[]) {
         
         clock_gettime(CLOCK_MONOTONIC, &end);
         
-        run_duration = time_diff(&start, &end);
-    //    printf("Run duration: %.9f\n", run_duration); 
+        product; // To avoid compiler warning
 
-        total_duration += run_duration; 
+        total_duration += time_diff(&start, &end);
+    
     }
     
     // Calculate average duration with arithmetic mean  
     double average_duration = total_duration / count; 
-    printf("Total duration: %.9f\n", total_duration); 
-    printf("Average duration: %.9f\n", average_duration); 
 
     // Calculate bandwidth as (bytes transfered) / (duration) 
     double bandwidth = dp_bytes_transfered(size) / average_duration; 
-    printf("Bandwidth: %.3f GB/sec\n", bandwidth / 1e9);
     
     // Calculate throughput as (flops) / (duration) 
     double throughput = dp_flops(size) / average_duration;
-    printf("Flops: %.3f GFLOP/sec\n", throughput / 1e9); 
 
 
-    return 1;
+    printf("N: %lu\t<T>: %.6f sec\tB: %.3f GB/sec\tF: %.3f GFLOP/sec\n",
+            size, average_duration, bandwidth / 1e9, throughput / 1e9);
+    return 0;
 }
