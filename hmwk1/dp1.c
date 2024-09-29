@@ -9,6 +9,11 @@ unsigned long dp_bytes_transfered(long N) {
     return 2*N*sizeof(float);
 }
 
+// One mult operation, one add operation per loop, N iterations of the loop
+unsigned long dp_flops(long N) {
+    return 2*N;
+}
+
 float dp(long N, float *pA, float *pB) {
     float R = 0.0;
     int j;
@@ -58,7 +63,7 @@ int main(int argc, char *argv[]) {
         clock_gettime(CLOCK_MONOTONIC, &end);
         
         run_duration = time_diff(&start, &end);
-        printf("Run duration: %.9f\n", run_duration); 
+    //    printf("Run duration: %.9f\n", run_duration); 
 
         total_duration += run_duration; 
     }
@@ -71,7 +76,10 @@ int main(int argc, char *argv[]) {
     // Calculate bandwidth as (bytes transfered) / (duration) 
     double bandwidth = dp_bytes_transfered(size) / average_duration; 
     printf("Bandwidth: %.3f GB/sec\n", bandwidth / 1e9);
-     
+    
+    // Calculate throughput as (flops) / (duration) 
+    double throughput = dp_flops(size) / average_duration;
+    printf("Flops: %.3f GFLOP/sec\n", throughput / 1e9); 
 
 
     return 1;
