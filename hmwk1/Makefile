@@ -2,19 +2,18 @@ CC := gcc
 CFLAGS := -Wall -g -O3
 LDFLAGS :=
 
+PROGRAMS := dp1 dp2 
 
-OBJECTS := dp1.o 
+all: $(PROGRAMS)
 
-all: dp1
-
-
-dp1: $(OBJECTS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS)
+%: %.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $^
+	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f dp1 *.o
+	rm -f $(PROGRAMS) *.o
 
-.PHONY: clean
+.PHONY: all clean
+
