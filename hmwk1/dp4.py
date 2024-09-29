@@ -33,18 +33,20 @@ B = np.ones(size, dtype=np.float32)
 
 total_duration = 0
 
-for _ in range(0, count):
+for i in range(0, count):
 
     start = time.clock_gettime(time.CLOCK_MONOTONIC)
 
     product = dp(size,A,B)
 
     end = time.clock_gettime(time.CLOCK_MONOTONIC)
-    
-    total_duration += end - start
+   
+    if (i > (count-1) // 2):
+        total_duration += end - start
 
+num_measurements = (count-1) / 2
 
-average_duration = total_duration / count
+average_duration = total_duration / num_measurements
 bandwidth = dp_bytes_transfered(size) / average_duration
 throughput = dp_flops(size) / average_duration
 

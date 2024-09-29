@@ -41,6 +41,11 @@ int main(int argc, char *argv[]) {
     
     unsigned long size = atol(argv[1]);
     unsigned long count = atol(argv[2]);
+    
+    if (count < 2) {
+       fprintf(stderr, "Count must be at least 2\n");
+       return 1; 
+    }
 
     printf("Performing %lu measurements on vector of size %lu\n", count, size);
         
@@ -55,7 +60,7 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     double total_duration = 0;
     for (unsigned long j = 0; j < count; j++) { 
-       
+               
         clock_gettime(CLOCK_MONOTONIC, &start); 
 
         volatile float product = dp(size, vec1, vec2);
@@ -63,13 +68,14 @@ int main(int argc, char *argv[]) {
         clock_gettime(CLOCK_MONOTONIC, &end);
         
         product; // To avoid compiler warning
-
-        total_duration += time_diff(&start, &end);
-    
+        
+        if (j > (count-1) / 2) 
+            total_duration += time_diff(&start, &end);
     }
-    
+   
+    long num_measurements = (count-1) / 2; 
     // Calculate average duration with arithmetic mean  
-    double average_duration = total_duration / count; 
+    double average_duration = total_duration / num_measurements; 
 
     // Calculate bandwidth as (bytes transfered) / (duration) 
     double bandwidth = dp_bytes_transfered(size) / average_duration; 
