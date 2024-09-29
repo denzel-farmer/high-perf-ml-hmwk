@@ -5,14 +5,14 @@
 #include <mkl_cblas.h>
 
 
-// 8 Memory accesses per iteration, N/4 iterations
+// Assuming same as C1, C2
 unsigned long dp_bytes_transfered(long N) {
-    return (8/4)*N*sizeof(float);
+    return 2*N*sizeof(float);
 }
 
-// 4 addition operations and 4 mult operations per iter, N/4 iterations
+// Asuming same as C1, C2
 unsigned long dp_flops(long N) {
-    return ((4+4)/4)*N;
+    return 2*N;
 }
 
 float bdp(long N, float *pA, float *pB) {
@@ -34,7 +34,7 @@ double time_diff(const struct timespec *start, const struct timespec *end) {
 int main(int argc, char *argv[]) {
     
     if (argc != 3) {
-        fprintf(stderr, "Usage: ./dp2 <vector size> <measurement count>\n");
+        fprintf(stderr, "Usage: ./dp3 <vector size> <measurement count>\n");
         return 1; 
     }
     
