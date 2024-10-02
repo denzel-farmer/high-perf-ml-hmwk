@@ -4,6 +4,7 @@
 
 #include <mkl_cblas.h>
 
+#define FILL_VALUE 1.0
 
 // Assuming same as C1, C2
 unsigned long dp_bytes_transfered(long N) {
@@ -53,6 +54,7 @@ int main(int argc, char *argv[]) {
     
     struct timespec start, end;
     double total_duration = 0;
+    double expected_product = FILL_VALUE*FILL_VALUE*size;
     for (unsigned long j = 0; j < count; j++) { 
        
         clock_gettime(CLOCK_MONOTONIC, &start); 
@@ -62,6 +64,11 @@ int main(int argc, char *argv[]) {
         clock_gettime(CLOCK_MONOTONIC, &end);
         
         product; // To avoid compiler warning
+        
+        if (product != expected_product) {
+            printf("Product (%f) does not match expected (%f)\n", product, expected_product);
+        }
+
 
         total_duration += time_diff(&start, &end);
     

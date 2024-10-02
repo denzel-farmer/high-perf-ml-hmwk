@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
+#define FILL_VALUE 1
 
 // 8 Memory accesses per iteration, N/4 iterations
 unsigned long dp_bytes_transfered(long N) {
@@ -51,26 +51,34 @@ int main(int argc, char *argv[]) {
     float *vec2 = malloc(sizeof(float)*size);
 
     for (unsigned long i = 0; i < size; i++) {
-       vec1[i] = 1.0;
-       vec2[i] = 1.0; 
+       vec1[i] = FILL_VALUE;
+       vec2[i] = FILL_VALUE; 
     }
     
     struct timespec start, end;
     double total_duration = 0;
+    volatile float product; 
     for (unsigned long j = 0; j < count; j++) { 
                
         clock_gettime(CLOCK_MONOTONIC, &start); 
 
-        volatile float product = dpunroll(size, vec1, vec2);
+        product = dpunroll(size, vec1, vec2);
         
         clock_gettime(CLOCK_MONOTONIC, &end);
         
         product; // To avoid compiler warning
-        
+        /* 
+        if (product != (size*FILL_VALUE*FILL_VALUE)) {
+            printf("Product (%f) and size (%f) differ\n", product, size*FILL_VALUE*FILL_VALUE); 
+ 
+        } 
+        */
         if (j > (count-1) / 2) 
             total_duration += time_diff(&start, &end);
     }
-   
+    
+    printf("Result: %f\n", product);
+
     long num_measurements = (count-1) / 2; 
     // Calculate average duration with arithmetic mean  
     double average_duration = total_duration / num_measurements; 

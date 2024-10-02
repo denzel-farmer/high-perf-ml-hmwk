@@ -2,6 +2,8 @@ import sys as sys
 import time as time 
 import numpy as np
 
+FILL_VALUE = 1.0
+
 def dp_bytes_transfered(size):
     return 2*size*4
 
@@ -21,10 +23,11 @@ count = int(sys.argv[2])
 
 print(f"Performing {count} measurements on vector of size {size}")
 
-A = np.ones(size, dtype=np.float32)
-B = np.ones(size, dtype=np.float32)
+A = np.full(size, FILL_VALUE, dtype=np.float32)
+B = np.full(size, FILL_VALUE, dtype=np.float32)
 
 total_duration = 0
+#expected_product = size*FILL_VALUE*FILL_VALUE
 for i in range(0, count):
 
     start = time.clock_gettime(time.CLOCK_MONOTONIC)
@@ -32,7 +35,10 @@ for i in range(0, count):
     product = dp(A,B)
 
     end = time.clock_gettime(time.CLOCK_MONOTONIC)
-   
+    
+#    if (product != expected_product):
+#        print(f"Product ({product}) not equal to expected product ({expected_product})")
+    
     if (i > (count-1) // 2):
         total_duration += end - start
 
