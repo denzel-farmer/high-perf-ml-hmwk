@@ -63,6 +63,3 @@ matmult00 : matmult.cu  matmultKernel.h matmultKernel00.o timer.o
 ### matmult01 : matmult.cu  matmultKernel.h matmultKernel01.o timer.o
 ###	${NVCC} $< matmultKernel01.o -o $@ $(LIB) timer.o $(OPTIONS) -DFOOTPRINT_SIZE=32
 
-
-
-
