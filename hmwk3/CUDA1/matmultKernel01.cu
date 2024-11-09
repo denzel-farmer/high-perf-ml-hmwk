@@ -140,7 +140,7 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
 
   // Write Csub to GLOBAL memory
   // Currently not coalesced--each thread writes its own 4 values 
-  Csub = &C.elements[C.stride * BLOCK_SIZE * block_row + BLOCK_SIZE * block_col];
+  Csub = &C.elements[C.stride * FOOTPRINT_SIZE * block_row + FOOTPRINT_SIZE * block_col];
 
   Csub[tile_calc_row*C.stride + tile_calc_col] = Cvalue[0][0];
   Csub[tile_calc_row*C.stride + (tile_calc_col+1)] = Cvalue[0][1];
