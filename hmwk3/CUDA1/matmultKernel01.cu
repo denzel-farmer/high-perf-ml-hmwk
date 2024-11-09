@@ -17,6 +17,9 @@
 
 #define FOOTPRINT_SIZE 32
 
+// By default, use coalesced writing
+//#define NO_COALESCED_WRITE
+
 // TODO add support for footprint size of 64? Must split out separate 'warp size' or similar
 
 #define NUM_THREADS (BLOCK_SIZE*BLOCK_SIZE)
@@ -136,76 +139,37 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
     // before reading in the next shared_A AND shared_B BLOCKS
     __syncthreads();
   }
-
-
-  // Write Csub to GLOBAL memory
-  // Currently not coalesced--each thread writes its own 4 values 
+  
   Csub = &C.elements[C.stride * FOOTPRINT_SIZE * block_row + FOOTPRINT_SIZE * block_col];
 
-  Csub[tile_calc_row*C.stride + tile_calc_col] = Cvalue[0][0];
-  Csub[tile_calc_row*C.stride + (tile_calc_col+1)] = Cvalue[0][1];
-  Csub[(tile_calc_row+1)*C.stride + tile_calc_col] = Cvalue[1][0];
-  Csub[(tile_calc_row+1)*C.stride + (tile_calc_col+1)] = Cvalue[1][1];
+
+  #ifndef NO_COALESCED_WRITE
+    // Option 1: coalesced--each thread writes its own value to shared memory, then writes coalesced to global memory
+    __shared__ float shared_C[FOOTPRINT_SIZE][FOOTPRINT_SIZE];
+
+    // All threads write their values to shared memory
+    shared_C[tile_calc_row][tile_calc_col] = Cvalue[0][0];
+    shared_C[tile_calc_row][tile_calc_col+1] = Cvalue[0][1];
+    shared_C[tile_calc_row+1][tile_calc_col] = Cvalue[1][0];
+    shared_C[tile_calc_row+1][tile_calc_col+1] = Cvalue[1][1];
+
+    __syncthreads();
+
+    // All threads write coalesced to global memory
+    // Require (FOOTPRINT_SIZE/BLOCK_SIZE)^2 iterations
+    for (int ld_round = 0; ld_round < LOAD_ROUNDS; ld_round++){ 
+      // Load each row using FOOTPRINT_SIZE consecutive threads
+      // Need to map thread coordinate (16x16) onto tile load coordinate (32xLOAD_ROUNDS)
+      int round_load_row = ld_round*CONCUR_ROWS + tile_load_row;
+      int global_tile_index = round_load_row*A.stride + tile_load_col;
+      Csub[global_tile_index] = shared_C[round_load_row][tile_load_col];
+    }
+  #else
+    // Option 2: not coalesced--each thread writes its own 4 values directly to global memory 
+    Csub[tile_calc_row * C.stride + tile_calc_col] = Cvalue[0][0];
+    Csub[tile_calc_row * C.stride + (tile_calc_col + 1)] = Cvalue[0][1];
+    Csub[(tile_calc_row + 1) * C.stride + tile_calc_col] = Cvalue[1][0];
+    Csub[(tile_calc_row + 1) * C.stride + (tile_calc_col + 1)] = Cvalue[1][1];
+  #endif
+
 }
-
-// // Define a gpu kernel to perform matrix multiplication
-// // of A x B = C.
-// __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C){
-
-//   // matrix blocks
-//   float *Asub, *Bsub, *Csub;
-//   // Putting these into registers speeds access.
-//   int thread_row = threadIdx.y;
-//   int thread_col = threadIdx.x;
-//   int block_row = blockIdx.y;
-//   int block_col = blockIdx.x;
-
-//   // Each THREAD BLOCK computes one sub matrix Csub of C
-//   // EACH THREAD creates its own matrix descriptor Csub
-//   Csub = &C.elements[C.stride * BLOCK_SIZE * block_row + BLOCK_SIZE * block_col];
-
-//   // Each thread computes one element of Csub in its copy of CValue
-//   float Cvalue = 0;
-
-//   // Loop over all sub matrices in block_row of A and block_col of B
-//   // required to compute Csub. Block multiply each pair of sub matrices
-//   // and accumulate results
-//   for (int m = 0;  m < (A.width / BLOCK_SIZE); ++m){
-//     // Get Asub and Bsub descriptors
-//     Asub = &A.elements[A.stride * BLOCK_SIZE * block_row + BLOCK_SIZE * m];
-//     Bsub = &B.elements[B.stride * BLOCK_SIZE * m + BLOCK_SIZE * block_col];
-
-//     // Copy ELEMENTS OF  ASub and Bsub into shared memory
-//     // EACH THREAD loads ONE ELEMENT of ASub and ONE of Bsub
-//     // Notice: it does not need to be the element it requires to
-//     //         compute its Cvalue, as long as all elements are 
-//     //         collaboratively read. 
-
-//     // Notice: every thread declares shared_A and shared_B in shared memory
-//     //         even though a thread block has only one shared_A and one shared_B
-//     __shared__ float shared_A[BLOCK_SIZE][BLOCK_SIZE];
-//     __shared__ float shared_B[BLOCK_SIZE][BLOCK_SIZE];
-
-//     // Each thread copies just one element of shared_A and one element of shared_B
-//     shared_A[thread_row][thread_col] = Asub[thread_row * A.stride + thread_col];
-//     shared_B[thread_row][thread_col] = Bsub[thread_row * B.stride + thread_col];
-
-//     // Synchronize to ensure all elements are read
-//     __syncthreads();
-
-//     // Do an inproduct of one row of shared_A and one col of shared_B
-//     // computing one Cvalue by accumulation
-// #pragma unroll
-//     for(int e=0; e<BLOCK_SIZE; ++e)
-//        Cvalue += shared_A[thread_row][e] * shared_B[e][thread_col];
-
-//     // Synchronize to ensure all Cvalues have been incremented
-//     // before reading in the next shared_A AND shared_B BLOCKS
-//     __syncthreads();
-//   }
-
-//   // Write Csub to GLOBAL memory.
-//   // Each thread writes its own cell value.
-//   Csub[thread_row * C.stride + thread_col] = Cvalue;
-// }
-
