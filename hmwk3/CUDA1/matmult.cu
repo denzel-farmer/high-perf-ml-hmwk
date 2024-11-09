@@ -109,7 +109,7 @@ void printMatrix(Matrix M, const char* name) {
   printf("\n%s \n",name);
   for(int y=0; y<M.height; y++){
    for(int x=0; x<M.width; x++) {
-      printf("%f ", M.elements[y * M.width + x]);
+      printf("%04.0f ", M.elements[y * M.width + x]);
    }
    printf("\n");
   }
@@ -143,6 +143,9 @@ void checkResult(Matrix M) {
 
    // print host_C
    printMatrix(M, "result");
+
+   // print error flag matrix
+   printf("\nerrors \n");
   }
 
 
@@ -153,9 +156,23 @@ void checkResult(Matrix M) {
       float it = correct.elements[y*correct.width+x];
       if(fabs(it - M.elements[y*M.width+x])> epsilon*it) {
         errCnt++;
+
+        if(verbose){
+          printf("X ");
+        }
+
+
         double error = fabs(it - M.elements[y*M.width+x])/it;
         if (error > maxerror) maxerror = error;
+      }
+      else{
+        if(verbose){
+          printf("O ");
+        }
       }      
+    }
+    if(verbose){
+      printf("\n");
     }
   }
 
