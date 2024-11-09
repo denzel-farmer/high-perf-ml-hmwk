@@ -15,7 +15,7 @@ OPTIONS   :=  -O3
 #--maxrregcount=100 --ptxas-options -v 
 
 TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  vecadd00 matmult00
+EXECS :=  vecadd00 matmult00 vecadd01 matmult01
 all:$(EXECS)
 
 #######################################################################
@@ -39,11 +39,11 @@ vecadd00 : vecadd.cu vecaddKernel.h vecaddKernel00.o timer.o
 
 
 #######################################################################
-### vecaddKernel01.o : vecaddKernel01.cu
-###	${NVCC} $< -c -o $@ $(OPTIONS)
-###
-### vecadd01 : vecadd.cu vecaddKernel.h vecaddKernel01.o timer.o
-###	${NVCC} $< vecaddKernel01.o -o $@ $(LIB) timer.o $(OPTIONS)
+vecaddKernel01.o : vecaddKernel01.cu
+	${NVCC} $< -c -o $@ $(OPTIONS)
+
+vecadd01 : vecadd.cu vecaddKernel.h vecaddKernel01.o timer.o
+	${NVCC} $< vecaddKernel01.o -o $@ $(LIB) timer.o $(OPTIONS)
 
 
 #######################################################################
@@ -57,9 +57,9 @@ matmult00 : matmult.cu  matmultKernel.h matmultKernel00.o timer.o
 
 #######################################################################
 ## Expanded Kernel, notice that FOOTPRINT_SIZE is redefined (from 16 to 32)
-### matmultKernel01.o : matmultKernel01.cu matmultKernel.h
-###	${NVCC} $< -c -o $@ $(OPTIONS) -DFOOTPRINT_SIZE=32
-###
-### matmult01 : matmult.cu  matmultKernel.h matmultKernel01.o timer.o
-###	${NVCC} $< matmultKernel01.o -o $@ $(LIB) timer.o $(OPTIONS) -DFOOTPRINT_SIZE=32
+matmultKernel01.o : matmultKernel01.cu matmultKernel.h
+	${NVCC} $< -c -o $@ $(OPTIONS) -DFOOTPRINT_SIZE=32
+
+matmult01 : matmult.cu  matmultKernel.h matmultKernel01.o timer.o
+	${NVCC} $< matmultKernel01.o -o $@ $(LIB) timer.o $(OPTIONS) -DFOOTPRINT_SIZE=32
 
