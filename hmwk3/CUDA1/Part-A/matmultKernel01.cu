@@ -84,7 +84,7 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
   int consec_id = thread_col + thread_row * BLOCK_SIZE;
   int tile_load_row = (consec_id / FOOTPRINT_SIZE);
   int tile_load_col = (consec_id % FOOTPRINT_SIZE);
-
+  
   // This thread working on chunk thread_row,thread_col 
   // Starts at element thread_row*2, thread_col*2
   int tile_calc_row = thread_row*2;

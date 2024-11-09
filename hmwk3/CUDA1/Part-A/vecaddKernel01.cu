@@ -22,6 +22,9 @@ __global__ void AddVectors(const float* A, const float* B, float* C, int N)
     int stride_size = (blockDim.x)*(gridDim.x);
     int blockStartIndex  = blockIdx.x * blockDim.x;
     int threadStartIndex = blockStartIndex + threadIdx.x;
+
+    int thread_id = (blockIdx.x)*(blockDim.x) + (threadIdx.x);
+
     int i, curr_index;
     
     for (i=0; i < N; i++) {
