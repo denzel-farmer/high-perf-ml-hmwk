@@ -23,6 +23,11 @@ struct FilterSet {
 #define BLOCK_SIZE 32
 #define BLOCK_DEPTH 1
 
+#define FILTER_SIZE 3
+
+#define IMAGE_CHANNELS 3
+#define IMAGE_SIZE 1024
+
 // TODO calculate dynamically based on input
 #define OUT_SIZE 1024
 #define OUT_DEPTH 64
@@ -78,28 +83,168 @@ __host__ __device__ void SetImageElement(Image &image, int c, int x, int y, doub
     image.elements[(c * image.height * image.width) + (y * image.width) + x] = value;
 }
 
+
+#define TILE_SIZE (FILTER_SIZE + BLOCK_SIZE)
+#define TILE_DEPTH (IMAGE_CHANNELS)
+
 __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    // int bdx = blockDim.x;
+    // int bdy = blockDim.y;
+    
+    
+    // int x = blockIdx.x * blockDim.x + threadIdx.x;
+    // int y = blockIdx.y * blockDim.y + threadIdx.y;
     int k = blockIdx.z * blockDim.z + threadIdx.z;
+    //int consec_id = x + y * BLOCK_SIZE + k * BLOCK_SIZE * BLOCK_SIZE;
     // Input image I is of size C, W, H
     // Filter set F is of size K, C, FH, FW
 
+    // Tile from in_image used PER THREAD: from x,y to x + (filters.width-1), y+(filters.height-1)
+    // Tile from in_image used PER BLOCK: 
+    // from (blockIdx.x * blockDim.x), (blockIdx.y * blockDim.y) to ((blockIdx.x+1)*blockDim.x -1) + (filters.width-1)),
+    // ((blockIdx.y+1)*blockDim.y -1) + (filters.height-1))
+    
+
+    // x dimension of tile size: ((blockIdx.x+1)*blockDim.x -1) + (filters.width-1)) - (blockIdx.x * blockDim.x)
+    // ((blockIdx.x+1)*blockDim.x - 1) + (filters.width-1)) - (blockIdx.x * blockDim.x)
+    // ((blockIdx.x*blockDim.x) + blockDim.x - 1) + filters.width - 1 - (blockIdx.x*blockDim.x)
+    // blockDim.x + filters.width
+
+    __shared__ double in_tile[TILE_SIZE][TILE_SIZE][TILE_DEPTH];
+    __shared__ double filter[3][3][3];
+    // Compute global indices
+    int in_x = bx * blockDim.x + tx;
+    int in_y = by * blockDim.y + ty;
+
+    // load in filter
+#pragma unroll
+    for (int c = 0; c < IMAGE_CHANNELS; c++) {
+#pragma unroll
+       for (int j = 0; j < FILTER_SIZE; j++) {
+#pragma unroll
+            for (int i = 0; i < FILTER_SIZE; i++) {
+                int filter_x = FILTER_SIZE - 1 - i;
+                int filter_y = FILTER_SIZE - 1 - j;
+                filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_x, filter_y);
+            }
+        }
+    }
+    // Load input image data into shared memory
+    for (int c = 0; c < IMAGE_CHANNELS; ++c) {
+        in_tile[ty][tx][c] = GetImageElement(in_image, c, in_x, in_y);
+    }
+
+    // Second round: use first 6 groups of 32 threads to load in remaining 192 elements
+    // Which pad the block by 3
+    // Load the right fringe into shared memory
+    if (tx < FILTER_SIZE) {
+        int x = bx * BLOCK_SIZE + BLOCK_SIZE + tx;
+        int y = by * BLOCK_SIZE + ty;
+#pragma unroll
+        for (int c = 0; c < IMAGE_CHANNELS; c++) {
+            in_tile[ty][BLOCK_SIZE + tx][c] = GetImageElement(in_image, c, x, y);
+        }
+    }
+
+    // Load the bottom fringe into shared memory
+    if (ty < FILTER_SIZE) {
+        int x = bx * BLOCK_SIZE + tx;
+        int y = by * BLOCK_SIZE + BLOCK_SIZE + ty;
+#pragma unroll
+        for (int c = 0; c < IMAGE_CHANNELS; c++) {
+            in_tile[BLOCK_SIZE + ty][tx][c] = GetImageElement(in_image, c, x, y);
+        }
+    }
+
+    // Load the bottom-right corner into shared memory
+    if (tx < FILTER_SIZE && ty < FILTER_SIZE) {
+        int x = bx * BLOCK_SIZE + BLOCK_SIZE + tx;
+        int y = by * BLOCK_SIZE + BLOCK_SIZE + ty;
+#pragma unroll
+        for (int c = 0; c < IMAGE_CHANNELS; c++) {
+            in_tile[BLOCK_SIZE + ty][BLOCK_SIZE + tx][c] = GetImageElement(in_image, c, x, y);
+        }
+    }
+
+    // First round: load in coalesced block size by block size 
+    // Load using all threads in block (32 x 32) into in_tile from 0,0 to 32,32 three times
+    // // Compute global indices
+    // int in_x = blockIdx.x * blockDim.x + tx;
+    // int in_y = blockIdx.y * blockDim.y + ty;
+
+    // // load in filter
+    // for (int c = 0; c < in_image.depth; c++) {
+    //    for (int j = 0; j < filters.height; j++) {
+    //         for (int i = 0; i < filters.width; i++) {
+    //             int filter_x = filters.width - 1 - i;
+    //             int filter_y = filters.height - 1 - j;
+    //             filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_x, filter_y);
+    //         }
+    //     }
+    // }
+    // // Load input image data into shared memory
+    // for (int c = 0; c < in_image.depth; ++c) {
+    //     int index = ((c * in_image.height + in_y) * in_image.width) + in_x;
+    //     in_tile[ty][tx][c] = GetImageElement(in_image, c, in_x, in_y);
+    // }
+
+    // // Second round: use first 6 groups of 32 threads to load in remaining 192 elements
+    // // Which pad the block by 3
+    // // Load the right fringe into shared memory
+    // if (tx < FILTER_SIZE) {
+    //     int x = blockIdx.x * BLOCK_SIZE + BLOCK_SIZE + tx;
+    //     int y = blockIdx.y * BLOCK_SIZE + ty;
+    //     for (int c = 0; c < in_image.depth; c++) {
+    //         in_tile[ty][BLOCK_SIZE + tx][c] = GetImageElement(in_image, c, x, y);
+    //     }
+    // }
+
+    // // Load the bottom fringe into shared memory
+    // if (ty < FILTER_SIZE) {
+    //     int x = blockIdx.x * BLOCK_SIZE + tx;
+    //     int y = blockIdx.y * BLOCK_SIZE + BLOCK_SIZE + ty;
+    //     for (int c = 0; c < in_image.depth; c++) {
+    //         in_tile[BLOCK_SIZE + ty][tx][c] = GetImageElement(in_image, c, x, y);
+    //     }
+    // }
+
+    // // Load the bottom-right corner into shared memory
+    // if (tx < FILTER_SIZE && ty < FILTER_SIZE) {
+    //     int x = blockIdx.x * BLOCK_SIZE + BLOCK_SIZE + tx;
+    //     int y = blockIdx.y * BLOCK_SIZE + BLOCK_SIZE + ty;
+    //     for (int c = 0; c < in_image.depth; c++) {
+    //         in_tile[BLOCK_SIZE + ty][BLOCK_SIZE + tx][c] = GetImageElement(in_image, c, x, y);
+    //     }
+    // }
+
+
+    __syncthreads();
+
     // To produce O[k,x,y], so k=z
     double output_value = 0;
-    for (int c = 0; c < in_image.depth; c++) {
-        for (int j = 0; j < filters.height; j++) {
-            for (int i = 0; i < filters.width; i++) {
+#pragma unroll
+    for (int c = 0; c < IMAGE_CHANNELS; c++) {
+#pragma unroll
+        for (int j = 0; j < FILTER_SIZE; j++) {
+#pragma unroll
+            for (int i = 0; i < FILTER_SIZE; i++) {
 
                 // F[k, c, F W − 1 − i, F H − 1 − j]
                 // I_0[c, x + i, y + j]
-                output_value += GetFilterSetElement(filters, k, c, filters.width - 1 - i, filters.height - 1 - j) \
-                        * GetImageElement(in_image, c, x + i, y + j);
+                int filter_x = FILTER_SIZE - 1 - i;
+                int filter_y = FILTER_SIZE - 1 - j;
+                output_value += filter[c][filter_x][filter_y] * in_tile[ty+j][tx+i][c];
+                // output_value += GetFilterSetElement(filters, k, c, filters.width - 1 - i, filters.height - 1 - j) \
+                //         * GetImageElement(in_image, c, x + i, y + j);
             }
         }
     }
 
-    SetImageElement(out_image, k, x, y, output_value);
+    SetImageElement(out_image, k, in_x, in_y, output_value);
 
 }
 
@@ -294,20 +439,7 @@ int main(int argc, char* argv[]) {
 
     double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
     cout << "Value at (" << OUT_Z << ", " << OUT_X << ", " << OUT_Y << "): " << value << endl;
-    // while (1) {
-    //     int c, x, y;
-    //     printf("Enter c x y (or -1 to exit): ");
-    //     scanf("%d %d %d", &c, &x, &y);
-    //     if (c == -1 || x == -1 || y == -1) {
-    //         break;
-    //     }
-    //     if (c >= 0 && c < out_image.depth && x >= 0 && x < out_image.width && y >= 0 && y < out_image.height) {
-    //         double value = GetImageElement(out_image, c, x, y);
-    //         printf("Value at (%d, %d, %d): %f\n", c, x, y, value);
-    //     } else {
-    //         printf("Invalid coordinates.\n");
-    //     }
-    // }
+
 
     // Free memory
     free(in_image.elements);

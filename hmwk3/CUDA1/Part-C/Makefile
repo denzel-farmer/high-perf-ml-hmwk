@@ -15,7 +15,7 @@ OPTIONS   :=  -O3
 #--maxrregcount=100 --ptxas-options -v 
 
 TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  c1
+EXECS :=  c1 c2
 all:$(EXECS)
 
 #######################################################################
@@ -28,6 +28,9 @@ tar:
 #######################################################################
 
 c1: c1.cu
+	${NVCC} $< -o $@ $(OPTIONS)
+
+c2: c2.cu
 	${NVCC} $< -o $@ $(OPTIONS)
 
 
