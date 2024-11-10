@@ -15,7 +15,7 @@ OPTIONS   :=  -O3
 #--maxrregcount=100 --ptxas-options -v 
 
 TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  q1 q2
+EXECS :=  q1 q2 q3
 all:$(EXECS)
 
 #######################################################################
@@ -27,18 +27,13 @@ tar:
 	tar -cvf $(TAR_FILE_NAME) Makefile *.h *.cu *.pdf *.txt
 #######################################################################
 
-q1:
 q1: q1.cpp
 	g++ q1.cpp -o q1 $(OPTIONS)
 
-timer.o : timer.cu timer.h
-	${NVCC} $< -c -o $@ $(OPTIONS)
-
-#######################################################################
-vecaddKernel00.o : vecaddKernel00.cu
-	${NVCC} $< -c -o $@ $(OPTIONS)
-
 q2 : q2.cu
+	${NVCC} $< -o $@ $(LIB) $(OPTIONS)
+
+q3 : q3.cu
 	${NVCC} $< -o $@ $(LIB) $(OPTIONS)
 
 
