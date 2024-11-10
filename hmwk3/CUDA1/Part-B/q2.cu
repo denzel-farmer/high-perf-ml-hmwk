@@ -150,5 +150,5 @@ int main(int const argc, char *argv[]) {
         exit(1);
     }
 
-    run_cuda_tests(elems);
+    run_cuda_tests(elems, "q2");
 }

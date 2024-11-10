@@ -91,7 +91,8 @@ int main(int const argc, char *argv[]) {
     }
 
     cout << "Using array of size: " << elems << "M" << endl;
-    
-    auto result = time_sum_arrays(elems*(1e6), 1, 1);
+    elems *= 1e6;
+    auto result = time_sum_arrays(elems, 1, 1);
     print_results(result);
+    write_to_csv("q1", "-", elems, result.calc_time);
 }
