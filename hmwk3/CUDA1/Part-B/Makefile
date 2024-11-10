@@ -27,14 +27,14 @@ tar:
 	tar -cvf $(TAR_FILE_NAME) Makefile *.h *.cu *.pdf *.txt
 #######################################################################
 
-q1: q1.cpp
-	g++ q1.cpp -o q1 $(OPTIONS)
+q1: q1.cpp utils.cpp
+	g++ q1.cpp utils.cpp -o q1 $(OPTIONS)
 
-q2 : q2.cu
-	${NVCC} $< -o $@ $(LIB) $(OPTIONS)
+q2 : q2.cu utils.cpp
+	${NVCC} q2.cu utils.cpp -o q2 $(LIB) $(OPTIONS)
 
-q3 : q3.cu
-	${NVCC} $< -o $@ $(LIB) $(OPTIONS)
+q3 : q3.cu utils.cpp
+	${NVCC} q3.cu utils.cpp -o q3 $(LIB) $(OPTIONS)
 
 
 #######################################################################

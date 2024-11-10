@@ -1,33 +1,11 @@
 #include <iostream>
 #include <sstream>
 #include <chrono>
+#include "partb.h"
 
 using namespace std;
 using namespace std::chrono;
 
-struct alloc_sum_result {
-    microseconds alloc_time;
-    microseconds populate_time;
-    microseconds calc_time;
-    microseconds total_time;
-    // Keep the last sum value and print it out to avoid optimizer skipping 
-    float last_sum;
-};
-
-#define EPS ((float)1e-4)
-
-bool verify_sum_arrays(size_t count, float *input1, float *input2, float *output) {
-    for (size_t i = 0; i < count; i++) {
-        float exp_sum = input1[i] + input2[i];
-        if (abs(output[i] - exp_sum) > EPS) {
-            cout << "Mismatch at index " << i << ": expected " << exp_sum << ", got " << output[i] << endl;
-            return false;
-        }
-    }
-
-    return true;
-
-}
 
 __global__ void SumArrays(const float* A, const float* B, float* C, int N)
 {
@@ -68,17 +46,6 @@ void Cleanup(bool noError) {  // simplified version from CUDA SDK
 
     exit(0);
 }
-
-void checkCUDAError(const char *msg)
-{
-  cudaError_t err = cudaGetLastError();
-  if( cudaSuccess != err) 
-    {
-      fprintf(stderr, "Cuda error: %s: %s.\n", msg, cudaGetErrorString(err) );
-      exit(-1);
-    }                         
-}
-
 
 alloc_sum_result time_sum_arrays(size_t count, size_t blocks, size_t threads) {
     alloc_sum_result result;
@@ -147,16 +114,6 @@ alloc_sum_result time_sum_arrays(size_t count, size_t blocks, size_t threads) {
     return result;
 }
 
-void print_results(alloc_sum_result result) {
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
-    cout << "Allocation Time: " << duration_cast<milliseconds>(result.alloc_time).count() << "ms" << endl;
-    cout << "Populate Time: " << duration_cast<milliseconds>(result.populate_time).count() << "ms" << endl;
-    cout << "Calculation Time: " << duration_cast<microseconds>(result.calc_time).count() << "us" << endl;
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
-    cout << "Last Sum Value: " << result.last_sum << endl;
-
-}
-
 int main(int const argc, char *argv[]) {
 
     if (argc != 2){
@@ -172,33 +129,6 @@ int main(int const argc, char *argv[]) {
         exit(1);
     }
 
-    cout << "Using array of size: " << elems << "M" << endl;
-    size_t blocks;
-    size_t threads;
-
-    elems *= 1e6;
-    // Must be multiple of largest threads (256)
-    elems = ((elems + 255) / 256) * 256;
-
-    blocks = 1;
-    threads = 1;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
-    auto result = time_sum_arrays(elems, blocks, threads);
-    print_results(result);
-   
-
-    blocks = 1;
-    threads = 256;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
-    result = time_sum_arrays(elems, blocks, threads);
-    print_results(result);
-
-    threads = 256;
-    blocks = elems / threads;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
-    result = time_sum_arrays(elems, blocks, threads);
-    print_results(result);
-
-
+    run_cuda_tests(elems);
 
 }

@@ -2,30 +2,10 @@
 #include <sstream>
 #include <chrono>
 
+#include "partb.h"
+
 using namespace std;
 using namespace std::chrono;
-
-struct alloc_sum_result {
-    microseconds alloc_time;
-    microseconds populate_time;
-    microseconds calc_time;
-    microseconds total_time;
-    // Keep the last sum value and print it out to avoid optimizer skipping 
-    float last_sum;
-};
-
-#define EPS ((float)1e-4)
-
-bool verify_sum_arrays(size_t count, float *input1, float *input2, float *output) {
-    for (size_t i = 0; i < count; i++) {
-        float exp_sum = input1[i] + input2[i];
-        if (abs(output[i] - exp_sum) > EPS)
-            return false;
-    }
-
-    return true;
-
-}
 
 void sum_arrays(size_t count, float *input1, float *input2, float *output) {
     for (size_t i = 0; i < count; i ++){
@@ -33,12 +13,18 @@ void sum_arrays(size_t count, float *input1, float *input2, float *output) {
     }
 }
 
-alloc_sum_result time_sum_arrays(size_t count) {
+alloc_sum_result time_sum_arrays(size_t count, size_t blocks, size_t threads) {
     alloc_sum_result result;
     result.alloc_time = microseconds(-1);
     result.populate_time = microseconds(-1);
     result.calc_time = microseconds(-1);
     result.total_time = microseconds(-1);
+
+    if (blocks != 1 && threads != 1) {
+        cout << "CPU only supports 1 block and 1 thread";
+        return result;
+    }
+
     auto t0 = high_resolution_clock::now();
     
     float *array1, *array2, *out;
@@ -106,11 +92,6 @@ int main(int const argc, char *argv[]) {
 
     cout << "Using array of size: " << elems << "M" << endl;
     
-    auto result = time_sum_arrays(elems*(1e6));
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
-    cout << "Allocation Time: " << duration_cast<milliseconds>(result.alloc_time).count() << "ms" << endl;
-    cout << "Populate Time: " << duration_cast<milliseconds>(result.populate_time).count() << "ms" << endl;
-    cout << "Calculation Time: " << duration_cast<milliseconds>(result.calc_time).count() << "ms" << endl;
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
-    cout << "Last Sum Value: " << result.last_sum << endl;
+    auto result = time_sum_arrays(elems*(1e6), 1, 1);
+    print_results(result);
 }
