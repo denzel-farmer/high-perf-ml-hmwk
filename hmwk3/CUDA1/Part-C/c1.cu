@@ -85,6 +85,16 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     // Input image I is of size C, W, H
     // Filter set F is of size K, C, FH, FW
 
+    // Block size = 32x32
+    // Shared tile size = 34x34
+
+    // in_tile[tx][ty] = I[bx*bdx + tx][by*bdy + ty]
+
+    // If globally out of bounds, then pad input tile with 0.0
+        // in_tile[ty * tile size in shared memory + tx] = 0.0
+    // If not out of bounds
+        // in_tile[ty * tile size in shared memory + tx] = I[global x * W + global y]
+
     // To produce O[k,x,y], so k=z
     double output_value = 0;
     for (int c = 0; c < in_image.depth; c++) {
