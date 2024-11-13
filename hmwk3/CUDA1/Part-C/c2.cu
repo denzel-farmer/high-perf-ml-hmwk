@@ -22,11 +22,10 @@ __host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM
     image.elements[(i * image.height * image.width) + (j * image.width) + k] = value;
 }
 
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 16
 #define BLOCK_DEPTH 1
 
 #define FILTER_SIZE 3
-
 #define IMAGE_CHANNELS 3
 #define IMAGE_SIZE 1024
 
@@ -46,11 +45,11 @@ __host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM
 __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     int tx = threadIdx.x;
     int ty = threadIdx.y;
-    int bx = blockIdx.x;
-    int by = blockIdx.y;
+    // int bx = blockIdx.x;
+    // int by = blockIdx.y;
 
-    int thread_base_x = bx * blockDim.x;
-    int thread_base_y = by * blockDim.y;
+    int thread_base_x = blockIdx.x * blockDim.x;
+    int thread_base_y = blockIdx.y * blockDim.y;
 
     int in_x = thread_base_x + tx;
     int in_y = thread_base_y + ty;
@@ -58,49 +57,32 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     int k = blockIdx.z * blockDim.z + threadIdx.z;
 
 
-    __shared__ ELEM_TYPE in_tile[TILE_SIZE][TILE_SIZE][TILE_DEPTH];
+    __shared__ ELEM_TYPE in_tile[TILE_DEPTH][TILE_SIZE][TILE_SIZE];
     __shared__ ELEM_TYPE filter[3][3][3];
-    // Compute global indices
-
 
     // load in filter
+    int filter_x = FILTER_SIZE - 1 - (tx % FILTER_SIZE);
+    int filter_y = FILTER_SIZE - 1 - (ty % FILTER_SIZE);
 #pragma unroll
     for (int c = 0; c < IMAGE_CHANNELS; c++) {
-#pragma unroll
-       for (int j = 0; j < FILTER_SIZE; j++) {
-#pragma unroll
-            for (int i = 0; i < FILTER_SIZE; i++) {
-                int filter_x = FILTER_SIZE - 1 - i;
-                int filter_y = FILTER_SIZE - 1 - j;
-                filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_x, filter_y);
-            }
-        }
+        filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_y, filter_x);
     }
-
-
+    
 #pragma unroll
     for (int c = 0; c < IMAGE_CHANNELS; ++c) {
 #pragma unroll
-        for (int idx_x = tx; idx_x < TILE_SIZE; idx_x += blockDim.x) {
+        for (int idx_y = ty; idx_y < TILE_SIZE; idx_y += blockDim.y) {
 #pragma unroll
-            for (int idx_y = ty; idx_y < TILE_SIZE; idx_y += blockDim.y) {
-                // if ((tx == 0) && c == 0 && bx == 0 && by == 0 && blockIdx.z == 0) {
-                //     printf("Thread (%d, %d, %d) loading element (%d, %d, %d)\n", tx, ty, threadIdx.z, thread_base_x + idx_x, thread_base_y + idx_y, c);
-                // }
-                    
-
-                in_tile[idx_y][idx_x][c] = GetImageElement(in_image, c, thread_base_x + idx_x, thread_base_y + idx_y);
+            for (int idx_x = tx; idx_x < TILE_SIZE; idx_x += blockDim.x) {                  
+                in_tile[c][idx_y][idx_x] = GetImageElement(in_image, c, thread_base_y + idx_y, thread_base_x + idx_x);
             }
         }
     }
-
-
-
 
     __syncthreads();
 
     // To produce O[k,x,y], so k=z
-    ELEM_TYPE output_value = 0;
+ELEM_TYPE output_value = 0;
 #pragma unroll
     for (int c = 0; c < IMAGE_CHANNELS; c++) {
 #pragma unroll
@@ -112,12 +94,12 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
                 // I_0[c, x + i, y + j]
                 int filter_x = FILTER_SIZE - 1 - i;
                 int filter_y = FILTER_SIZE - 1 - j;
-                output_value += filter[c][filter_x][filter_y] * in_tile[ty+j][tx+i][c];
+                output_value += filter[c][filter_x][filter_y] * in_tile[c][ty+j][tx+i];
             }
         }
     }
 
-    SetImageElement(out_image, k, in_x, in_y, output_value);
+    SetImageElement(out_image, k, in_y, in_x, output_value);
 
 }
 
