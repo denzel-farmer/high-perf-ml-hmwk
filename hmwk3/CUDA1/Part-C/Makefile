@@ -15,7 +15,7 @@ OPTIONS   :=  -O3
 #--maxrregcount=100 --ptxas-options -v 
 
 TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  c1 c2
+EXECS :=  c1 c2 c3
 all:$(EXECS)
 
 #######################################################################
@@ -26,12 +26,17 @@ clean:
 tar:
 	tar -cvf $(TAR_FILE_NAME) Makefile *.h *.cu *.pdf *.txt
 #######################################################################
+c1: c1.cu ImageUtils.o
+	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS)
 
-c1: c1.cu
-	${NVCC} $< -o $@ $(OPTIONS)
+c2: c2.cu ImageUtils.o
+	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS)
 
-c2: c2.cu
-	${NVCC} $< -o $@ $(OPTIONS)
+c3: c3.cu ImageUtils.o
+	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS) -lcudnn
+
+ImageUtils.o: ImageUtils.cu ImageUtils.h
+	${NVCC} ImageUtils.cu -c -o ImageUtils.o $(OPTIONS)
 
 
 #######################################################################

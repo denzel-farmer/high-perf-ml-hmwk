@@ -2,81 +2,29 @@
 #include <chrono>
 #include <iostream>
 
+#include "ImageUtils.h"
+
 using namespace std;
 using namespace std::chrono;
 
-struct Image {
-    int width;
-    int height;
-    int depth;
-    double *elements;
-};
-
-struct FilterSet {
-    int width;
-    int height;
-    int depth;
-    int count;
-    double *elements;
-};
 
 #define BLOCK_SIZE 32
 #define BLOCK_DEPTH 1
 
-// TODO calculate dynamically based on input
-#define OUT_SIZE 1024
-#define OUT_DEPTH 64
-
-
-#define OUT_X 1023
-#define OUT_Y 1023
-#define OUT_Z 1
-
-Image MakeDeviceImage(Image h_image, bool copy) {
-    Image d_image;
-    d_image.width = h_image.width;
-    d_image.height = h_image.height;
-    d_image.depth = h_image.depth;
-    size_t size = h_image.width * h_image.height * h_image.depth * sizeof(double);
-    cudaMalloc(&d_image.elements, size);
-    if (copy) {
-        cudaMemcpy(d_image.elements, h_image.elements, size, cudaMemcpyHostToDevice);
-    }
-    return d_image;
+__host__ __device__ ELEM_TYPE GetFilterSetElement(const FilterSet& filters, int i, int j, int k, int l) {
+    return filters.elements[(i * filters.height * filters.width * filters.depth) + (j * filters.height * filters.width) \
+        + (k * filters.width) + l];
 }
 
-FilterSet MakeDeviceFilterSet(FilterSet h_filters, bool copy) {
-    FilterSet d_filters;
-    d_filters.width = h_filters.width;
-    d_filters.height = h_filters.height;
-    d_filters.depth = h_filters.depth;
-    d_filters.count = h_filters.count;
-    size_t size = h_filters.width * h_filters.height * h_filters.depth * h_filters.count * sizeof(double);
-    cudaMalloc(&d_filters.elements, size);
-    if (copy) {
-        cudaMemcpy(d_filters.elements, h_filters.elements, size, cudaMemcpyHostToDevice);
-    }
-    return d_filters;
+__host__ __device__ ELEM_TYPE GetImageElement(const Image &image, int i, int j, int k) {
+    return image.elements[(i * image.height * image.width) + (j * image.width) + k];
 }
 
-__host__ __device__ double GetFilterSetElement(const FilterSet& filters, int k, int c, int x, int y) {
-    return filters.elements[(k * filters.height * filters.width * filters.depth) + (c * filters.height * filters.width) \
-        + (y * filters.width) + x];
-}
-
-void SetFilterSetElement(FilterSet& filters, int k, int c, int x, int y, double value) {
-    filters.elements[(k * filters.height * filters.width * filters.depth) + (c * filters.height * filters.width) \
-        + (y * filters.width) + x] = value;
+__host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM_TYPE value) {
+    image.elements[(i * image.height * image.width) + (j * image.width) + k] = value;
 }
 
 
-__host__ __device__ double GetImageElement(const Image &image, int c, int x, int y) {
-    return image.elements[(c * image.height * image.width) + (y * image.width) + x];
-}
-
-__host__ __device__ void SetImageElement(Image &image, int c, int x, int y, double value) {
-    image.elements[(c * image.height * image.width) + (y * image.width) + x] = value;
-}
 
 __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -96,7 +44,7 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
         // in_tile[ty * tile size in shared memory + tx] = I[global x * W + global y]
 
     // To produce O[k,x,y], so k=z
-    double output_value = 0;
+    ELEM_TYPE output_value = 0;
     for (int c = 0; c < in_image.depth; c++) {
         for (int j = 0; j < filters.height; j++) {
             for (int i = 0; i < filters.width; i++) {
@@ -120,6 +68,18 @@ size_t GetElementCount(FilterSet filters) {
 size_t GetElementCount(Image image) {
     return image.depth*image.width*image.height;
 }
+
+
+// TODO calculate dynamically based on input
+#define OUT_SIZE 1024
+#define OUT_DEPTH 64
+
+
+#define OUT_X 1023
+#define OUT_Y 1023
+#define OUT_Z 1
+
+
 
 microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, Image out_image) {
     
@@ -148,7 +108,7 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
     cudaThreadSynchronize();
     auto t1 = high_resolution_clock::now();
 
-    cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
 
     double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
@@ -160,103 +120,6 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
 
     return duration_cast<microseconds>(t1-t0);
 }
-
-
-
-Image AllocateHostImage(int C, int H, int W) {
-    Image image;
-    image.depth = C;
-    image.height = H;
-    image.width = W;
-    image.elements = (double *)malloc(C*H*W*sizeof(double));
-
-    return image;
-}
-#define PAD_MULT 1
-
-Image GenerateInputImage(int C, int H, int W, int padding) {
-    int unpadded_H = H;
-    int unpadded_W = W;
-
-    H = H + padding*PAD_MULT;
-    W = W + padding*PAD_MULT;
-
-    Image image = AllocateHostImage(C, H, W);
-
-    for (int c = 0; c < C; c++) {
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
-                double value = c * (x + y);
-
-                if ((padding != 0) && ((y >= unpadded_H) || (x >= unpadded_W)))
-                    value = 0.0;
-
-                SetImageElement(image, c, x, y, value);
-            }
-        }
-    }
-
-    return image;
-}
-
-FilterSet GenerateFilterSet(int K, int C, int FH, int FW) {
-    FilterSet filters; 
-
-    filters.count = K;
-    filters.depth = C;
-    filters.width = FW;
-    filters.height = FH;
-    filters.elements = (double *)malloc(K*C*FH*FW*sizeof(double));
-
-    //F [k, c, i, j] = (c + k) · (i + j)
-    // TODO I feel weird about i < FH and j < FW, should switch?
-    for (int k = 0; k < K; k++) {
-        for (int c = 0; c < C; c++) {
-            for (int i = 0; i < FH; i++) {
-                for (int j = 0; j < FW; j++) {
-                    double value = (c + k)*(i+j);
-                    SetFilterSetElement(filters, k, c, i, j, value);
-                }
-            }
-        }
-    }
-
-
-    return filters;
-}
-
-void PrintImage(const Image& image, int max_elements) {
-    int count = 0;
-    for (int y = 0; y < image.height && count < max_elements; y++) {
-        for (int x = 0; x < image.width && count < max_elements; x++) {
-            printf("[");
-            for (int c = 0; c < image.depth; c++) {
-                printf("%.0f", image.elements[(c * image.height * image.width) + (y * image.width) + x]);
-                if (c < image.depth - 1) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-            for (int pad = 0; pad < 18 - (image.depth * 3); pad++) {
-                printf(" ");
-            }
-            printf(" ");
-            count++;
-        }
-        printf("\n");
-    }
-}
-
-double checksum(const Image& image) {
-    double sum = 0.0;
-    for (int elem = 0; elem < GetElementCount(image); elem++) {
-        sum += image.elements[elem];
-    }
-
-    return sum;
-}
-
-
 
 int main(int argc, char* argv[]) {
     int maxprint = 1024*3*1;
@@ -273,7 +136,7 @@ int main(int argc, char* argv[]) {
     int H = 1024;
     int W = 1024; 
     int C = 3;
-    int padding = 2;
+    int padding = 1;
 
     Image in_image = GenerateInputImage(C, H, W, padding);
 
@@ -299,7 +162,7 @@ int main(int argc, char* argv[]) {
         PrintImage(out_image, maxprint);
     }
     // Print out checksum
-    cout << fixed << "Checksum: " << checksum(out_image) << endl;
+    cout << fixed << "Checksum: " << ImageChecksum(out_image) << endl;
     cout << "Kernel execution time: " << duration_cast<milliseconds>(kernel_time).count() << "ms" << endl;
 
     double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
