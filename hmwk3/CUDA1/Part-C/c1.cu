@@ -44,12 +44,6 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
 
 }
 
-
-// constexpr int OUT_X = 1023;
-// constexpr int OUT_Y = 1023;
-// constexpr int OUT_Z = 1;
-
-
 constexpr int BLOCK_SIZE = 32;
 constexpr int BLOCK_DEPTH = 1;
 
