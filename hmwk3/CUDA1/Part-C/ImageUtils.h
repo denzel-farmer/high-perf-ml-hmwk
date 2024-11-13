@@ -1,6 +1,6 @@
 #pragma once 
 
-#define ELEM_TYPE double    
+#define ELEM_TYPE float    
 
 struct Image {
     int width;
@@ -38,4 +38,4 @@ FilterSet GenerateFilterSet(int K, int C, int FH, int FW);
 
 void PrintImage(const Image& image, int max_elements);
 
-ELEM_TYPE ImageChecksum(const Image& image);
+double ImageChecksum(const Image& image);

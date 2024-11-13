@@ -38,6 +38,15 @@ void SetFilterSetElement(FilterSet& filters, int i, int j, int k, int l, ELEM_TY
 }
 
 
+size_t GetElementCount(FilterSet filters) {
+    return filters.count*filters.depth*filters.height*filters.width;
+}
+
+size_t GetElementCount(Image image) {
+    return image.depth*image.width*image.height;
+}
+
+
 
 
 Image AllocateHostImage(int C, int H, int W) {
@@ -45,7 +54,7 @@ Image AllocateHostImage(int C, int H, int W) {
     image.depth = C;
     image.height = H;
     image.width = W;
-    image.elements = (double *)malloc(C*H*W*sizeof(double));
+    image.elements = (ELEM_TYPE *)malloc(C*H*W*sizeof(ELEM_TYPE));
 
     return image;
 }
@@ -77,7 +86,7 @@ FilterSet GenerateFilterSet(int K, int C, int FH, int FW) {
     filters.depth = C;
     filters.width = FW;
     filters.height = FH;
-    filters.elements = (double *)malloc(K*C*FH*FW*sizeof(double));
+    filters.elements = (ELEM_TYPE *)malloc(K*C*FH*FW*sizeof(ELEM_TYPE));
 
     //F [k, c, i, j] = (c + k) · (i + j)
     // TODO I feel weird about i < FH and j < FW, should switch?
@@ -85,7 +94,7 @@ FilterSet GenerateFilterSet(int K, int C, int FH, int FW) {
         for (int c = 0; c < C; c++) {
             for (int i = 0; i < FH; i++) {
                 for (int j = 0; j < FW; j++) {
-                    double value = (c + k)*(i+j);
+                    ELEM_TYPE value = (c + k)*(i+j);
                     SetFilterSetElement(filters, k, c, i, j, value);
                 }
             }

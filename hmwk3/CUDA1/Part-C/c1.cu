@@ -44,32 +44,19 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
 
 }
 
-size_t GetElementCount(FilterSet filters) {
-    return filters.count*filters.depth*filters.height*filters.width;
-}
-
-size_t GetElementCount(Image image) {
-    return image.depth*image.width*image.height;
-}
-
-
-
-constexpr int BLOCK_SIZE = 32;
-constexpr int BLOCK_DEPTH = 1;
-
-constexpr int OUT_SIZE = 1024;
-constexpr int OUT_DEPTH = 64;
 
 // constexpr int OUT_X = 1023;
 // constexpr int OUT_Y = 1023;
 // constexpr int OUT_Z = 1;
 
 
+constexpr int BLOCK_SIZE = 32;
+constexpr int BLOCK_DEPTH = 1;
 
 microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, Image out_image) {
     
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, BLOCK_DEPTH);
-    dim3 dimGrid(OUT_SIZE / BLOCK_SIZE, OUT_SIZE / BLOCK_SIZE, OUT_DEPTH / BLOCK_DEPTH);
+    dim3 dimGrid(out_image.height / BLOCK_SIZE, out_image.width / BLOCK_SIZE, out_image.depth / BLOCK_DEPTH);
 
     Image d_in_image = MakeDeviceImage(in_image, true);
     FilterSet d_filters = MakeDeviceFilterSet(filters, true);
@@ -86,7 +73,7 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
     cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
 
-    // double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
+    // ELEM_TYPE value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
     // printf("Value at (%d, %d, %d): %f\n", OUT_Z, OUT_X, OUT_Y, value);
 
     cudaFree(d_in_image.elements);
@@ -121,7 +108,6 @@ int main(int argc, char* argv[]) {
 
     // Create filter set 
     int K = 64;
-    C = 3;  
     int FW = 3;
     int FH = 3;
 
@@ -139,23 +125,6 @@ int main(int argc, char* argv[]) {
     // Print out checksum
     cout << fixed << "Checksum: " << ImageChecksum(out_image) << endl;
     cout << "Kernel execution time: " << duration_cast<milliseconds>(kernel_time).count() << "ms" << endl;
-
-    // double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
-    // cout << "Value at (" << OUT_Z << ", " << OUT_X << ", " << OUT_Y << "): " << value << endl;
-    // while (1) {
-    //     int c, x, y;
-    //     printf("Enter c x y (or -1 to exit): ");
-    //     scanf("%d %d %d", &c, &x, &y);
-    //     if (c == -1 || x == -1 || y == -1) {
-    //         break;
-    //     }
-    //     if (c >= 0 && c < out_image.depth && x >= 0 && x < out_image.width && y >= 0 && y < out_image.height) {
-    //         double value = GetImageElement(out_image, c, x, y);
-    //         printf("Value at (%d, %d, %d): %f\n", c, x, y, value);
-    //     } else {
-    //         printf("Invalid coordinates.\n");
-    //     }
-    // }
 
     // Free memory
     free(in_image.elements);
