@@ -1,11 +1,10 @@
 #include <iostream>
-#include <vector>
+#include <chrono>
 #include <cuda_runtime.h>
 #include <cudnn.h>
 
-#include "ImageUtils.h"
+using namespace std;
 
-constexpr int BATCH = 1;        // Batch size
 constexpr int C = 3;            // Number of input channels
 constexpr int H = 1024;         // Input height
 constexpr int W = 1024;         // Input width
@@ -135,29 +134,32 @@ int main() {
   double *h_output = (double *)malloc(K*H*W*sizeof(double));
   double *d_output;
   cudaMalloc(&d_output, K*H*W*sizeof(double));
+  // Start timing
+  cudaDeviceSynchronize();
+  auto start = chrono::high_resolution_clock::now();
 
-    const double alpha = 1.0f, beta = 0.0f;
-    checkCUDNN(cudnnConvolutionForward(cudnn,
-                            &alpha,
-                            input_desc,
-                            d_input,
-                            filter_desc,
-                            d_filter,
-                            conv_desc,
-                            conv_algo,
-                            d_workspace,
-                            workspace_size,
-                            &beta,
-                            output_desc,
-                            d_output));
-    
-    cudaMemcpy(h_output, d_output, K*H*W*sizeof(double), cudaMemcpyDeviceToHost);
+  const double alpha = 1.0f, beta = 0.0f;
+  checkCUDNN(cudnnConvolutionForward(cudnn,
+              &alpha,
+              input_desc,
+              d_input,
+              filter_desc,
+              d_filter,
+              conv_desc,
+              conv_algo,
+              d_workspace,
+              workspace_size,
+              &beta,
+              output_desc,
+              d_output));
 
+  cudaDeviceSynchronize();
+  auto end = chrono::high_resolution_clock::now();
+  
+  chrono::duration<double, milli> duration = end - start;
+  std::cout << "Convolution forward pass time: " << duration.count() << " ms" << std::endl;
 
-    // Print a random value from h_output 
-    std:: cout << "Random value from h_input: " << h_input[423] << std::endl;
-    std::cout << "Random value from h_filter: " << h_filter[50] << std::endl;
-    std::cout << "Random value from h_output: " << h_output[5000] << std::endl;
+  cudaMemcpy(h_output, d_output, K*H*W*sizeof(double), cudaMemcpyDeviceToHost);
 
     double checksum = 0;
     for (long elem = 0; elem < K*H*W; elem++) {

@@ -32,8 +32,8 @@ c1: c1.cu ImageUtils.o
 c2: c2.cu ImageUtils.o
 	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS)
 
-c3: c3.cu ImageUtils.o
-	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS) -lcudnn
+c3: c3.cu
+	${NVCC} $< -o $@ $(OPTIONS) -lcudnn
 
 ImageUtils.o: ImageUtils.cu ImageUtils.h
 	${NVCC} ImageUtils.cu -c -o ImageUtils.o $(OPTIONS)
