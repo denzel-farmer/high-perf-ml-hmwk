@@ -8,9 +8,7 @@ using namespace std;
 using namespace std::chrono;
 
 
-#define BLOCK_SIZE 32
-#define BLOCK_DEPTH 1
-
+// TODO should put in image utils once I figure out linking 
 __host__ __device__ ELEM_TYPE GetFilterSetElement(const FilterSet& filters, int i, int j, int k, int l) {
     return filters.elements[(i * filters.height * filters.width * filters.depth) + (j * filters.height * filters.width) \
         + (k * filters.width) + l];
@@ -30,27 +28,12 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     int k = blockIdx.z * blockDim.z + threadIdx.z;
-    // Input image I is of size C, W, H
-    // Filter set F is of size K, C, FH, FW
 
-    // Block size = 32x32
-    // Shared tile size = 34x34
-
-    // in_tile[tx][ty] = I[bx*bdx + tx][by*bdy + ty]
-
-    // If globally out of bounds, then pad input tile with 0.0
-        // in_tile[ty * tile size in shared memory + tx] = 0.0
-    // If not out of bounds
-        // in_tile[ty * tile size in shared memory + tx] = I[global x * W + global y]
-
-    // To produce O[k,x,y], so k=z
     ELEM_TYPE output_value = 0;
     for (int c = 0; c < in_image.depth; c++) {
         for (int j = 0; j < filters.height; j++) {
             for (int i = 0; i < filters.width; i++) {
 
-                // F[k, c, F W − 1 − i, F H − 1 − j]
-                // I_0[c, x + i, y + j]
                 output_value += GetFilterSetElement(filters, k, c, filters.width - 1 - i, filters.height - 1 - j) \
                         * GetImageElement(in_image, c, x + i, y + j);
             }
@@ -70,31 +53,23 @@ size_t GetElementCount(Image image) {
 }
 
 
-// TODO calculate dynamically based on input
-#define OUT_SIZE 1024
-#define OUT_DEPTH 64
 
+constexpr int BLOCK_SIZE = 32;
+constexpr int BLOCK_DEPTH = 1;
 
-#define OUT_X 1023
-#define OUT_Y 1023
-#define OUT_Z 1
+constexpr int OUT_SIZE = 1024;
+constexpr int OUT_DEPTH = 64;
+
+// constexpr int OUT_X = 1023;
+// constexpr int OUT_Y = 1023;
+// constexpr int OUT_Z = 1;
 
 
 
 microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, Image out_image) {
     
-    size_t block_dim_x = BLOCK_SIZE;
-    size_t block_dim_y = BLOCK_SIZE;
-    size_t block_dim_z = BLOCK_DEPTH;
-
-    dim3 dimBlock(block_dim_x, block_dim_y, block_dim_z);
-
-    // TODO calculate OUT_SIZE and OUT_DEPTH from image/filter dimensions
-    size_t num_blocks_x = OUT_SIZE / block_dim_x;
-    size_t num_blocks_y = OUT_SIZE / block_dim_y;
-    size_t num_blocks_z = OUT_DEPTH / block_dim_z;
-
-    dim3 dimGrid(num_blocks_x, num_blocks_y, num_blocks_z);
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, BLOCK_DEPTH);
+    dim3 dimGrid(OUT_SIZE / BLOCK_SIZE, OUT_SIZE / BLOCK_SIZE, OUT_DEPTH / BLOCK_DEPTH);
 
     Image d_in_image = MakeDeviceImage(in_image, true);
     FilterSet d_filters = MakeDeviceFilterSet(filters, true);
@@ -111,8 +86,8 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
     cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
 
-    double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
-    printf("Value at (%d, %d, %d): %f\n", OUT_Z, OUT_X, OUT_Y, value);
+    // double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
+    // printf("Value at (%d, %d, %d): %f\n", OUT_Z, OUT_X, OUT_Y, value);
 
     cudaFree(d_in_image.elements);
     cudaFree(d_filters.elements);
@@ -165,8 +140,8 @@ int main(int argc, char* argv[]) {
     cout << fixed << "Checksum: " << ImageChecksum(out_image) << endl;
     cout << "Kernel execution time: " << duration_cast<milliseconds>(kernel_time).count() << "ms" << endl;
 
-    double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
-    cout << "Value at (" << OUT_Z << ", " << OUT_X << ", " << OUT_Y << "): " << value << endl;
+    // double value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
+    // cout << "Value at (" << OUT_Z << ", " << OUT_X << ", " << OUT_Y << "): " << value << endl;
     // while (1) {
     //     int c, x, y;
     //     printf("Enter c x y (or -1 to exit): ");
