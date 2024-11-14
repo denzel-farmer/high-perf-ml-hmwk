@@ -14,8 +14,8 @@ LIB       :=  -L$(SDK_INSTALL_PATH)/lib64 -L$(SDK_INSTALL_PATH)/samples/common/l
 OPTIONS   :=  -O3 
 #--maxrregcount=100 --ptxas-options -v 
 
-TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  vecadd00 matmult00 vecadd01 matmult01 arraysum-q1
+TAR_FILE_NAME  := df2817.tar
+EXECS :=  vecadd00 matmult00 vecadd01 matmult01
 all:$(EXECS)
 
 #######################################################################
@@ -31,6 +31,9 @@ timer.o : timer.cu timer.h
 	${NVCC} $< -c -o $@ $(OPTIONS)
 
 #######################################################################
+# Part A, Q1: The provided makefile worked as provided. It compiles 
+# vecadd00, which uses vecaddKernel00.cu -- a simple, non-coalesced
+# vector addition kernel 
 vecaddKernel00.o : vecaddKernel00.cu
 	${NVCC} $< -c -o $@ $(OPTIONS)
 
@@ -39,6 +42,8 @@ vecadd00 : vecadd.cu vecaddKernel.h vecaddKernel00.o timer.o
 
 
 #######################################################################
+# Part A, Q2: Uncommented this to compile vecadd01 using VecAddKernel01,
+# a coalesced vector addition kernel
 vecaddKernel01.o : vecaddKernel01.cu
 	${NVCC} $< -c -o $@ $(OPTIONS)
 

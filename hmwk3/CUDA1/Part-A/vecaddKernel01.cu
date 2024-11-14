@@ -4,18 +4,10 @@
 /// using coalesced memory access.
 /// 
 
-// Iter 0: 
-// blocks[0]/threads[0] -> elems[0]
-// blocks[0]/threads[1] -> elems[1]
-// blocks[1]/threads[0] -> elems[block-start] = elems[blockIdx.x * blockDim.x]
-// blocks[n_b]/thread[n_t] -> elems[blockstart + n_t]
-
-// Iter i:
-// blocks[n_b]/thread[n_t] -> elems[blockstart + n_t] + total_len * i = elems[blockIdx.x * blockDim.x + threadIdx.x + blockDim.x*gridDim.x]
-
-// First thread of first block should access first element on first iteration
-// 
-
+// This kernel is coalseced by having each thread calculate 'strided' elements
+// of the array. So, on the first iteration thread 0 calculates element 0, thread
+// 1 calculates element 1, etc. Then on the second iteration, thread 0 calculates
+// num_threads + 0, thread 1 calculates num_threads + 1, etc. 
 __global__ void AddVectors(const float* A, const float* B, float* C, int N)
 {
     // number of threads accessing together 
