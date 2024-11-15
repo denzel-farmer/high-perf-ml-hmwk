@@ -23,11 +23,11 @@ void write_to_csv(const string& question, const string& scenario, int K, microse
 }
 
 void print_results(alloc_sum_result result) {
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
-    cout << "Allocation Time: " << duration_cast<milliseconds>(result.alloc_time).count() << "ms" << endl;
-    cout << "Populate Time: " << duration_cast<milliseconds>(result.populate_time).count() << "ms" << endl;
+    // cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
+    // cout << "Allocation Time: " << duration_cast<milliseconds>(result.alloc_time).count() << "ms" << endl;
+    // cout << "Populate Time: " << duration_cast<milliseconds>(result.populate_time).count() << "ms" << endl;
     cout << "Calculation Time: " << duration_cast<microseconds>(result.calc_time).count() << "us" << endl;
-    cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
+    // cout << "Total Time: " << duration_cast<milliseconds>(result.total_time).count() << "ms" << endl;
     cout << "Last Sum Value: " << result.last_sum << endl;
 }
 
@@ -51,12 +51,13 @@ void run_cuda_tests(size_t elems, const string& question){
     // Must be multiple of largest threads (256)
     elems = ((elems + 255) / 256) * 256;
 
-    cout << "Using array of size: " << elems << endl;
+    cout << "K=" << elems << endl;
   
 
     size_t blocks = 1;
     size_t threads = 1;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+    //cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+    cout << "\nBlocks=" << blocks << "\nThreads/block=" << threads << endl;
     auto result = time_sum_arrays(elems, blocks, threads);
     print_results(result);
     write_to_csv(question, "1b-1t", elems, result.calc_time);
@@ -64,14 +65,16 @@ void run_cuda_tests(size_t elems, const string& question){
 
     blocks = 1;
     threads = 256;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+   // cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+    cout << "\nBlocks=" << blocks << "\nThreads/block=" << threads << endl;
     result = time_sum_arrays(elems, blocks, threads);
     print_results(result);
     write_to_csv(question, "1b-256t", elems, result.calc_time);
 
     threads = 256;
     blocks = elems / 256;
-    cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+    //cout << "\nRunning test with " << blocks << " blocks/grid and " << threads << " threads per block\n";
+    cout << "\nBlocks=" << blocks << "\nThreads/block=" << threads << endl;
     result = time_sum_arrays(elems, blocks, threads);
     print_results(result);
     write_to_csv(question, "MANYb-256t", elems, result.calc_time);

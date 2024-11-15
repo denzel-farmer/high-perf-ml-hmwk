@@ -17,7 +17,7 @@ name_from_scenario = {
     "q1": "CPU"
 }
 
-def plot_results(data, question, filename):
+def plot_results(data, question, q_alias, filename):
     df = pd.DataFrame(data)
     df = df[df['question'] == question]
     df['K'] = df['K'].astype(int) / 1e6
@@ -39,7 +39,7 @@ def plot_results(data, question, filename):
     
     plt.xlabel('K (millions of elements)')
     plt.ylabel('Calculation Time (microseconds)')
-    plt.title(f'Results for {question}')
+    plt.title(q_alias)
     plt.legend()
     plt.yscale('log')
     plt.xscale('log')
@@ -51,8 +51,8 @@ def main():
     file_path = 'results.csv'
     data = read_csv(file_path)
 
-    plot_results(data, 'q3', "q4_with_unified.jpg")
-    plot_results(data, 'q2', "q4_without_unified.jpg")
+    plot_results(data, 'q3', "Unified Memory Management", "q4_with_unified.jpg")
+    plot_results(data, 'q2', "Explicit Memory Management", "q4_without_unified.jpg")
 
 if __name__ == "__main__":
     main()

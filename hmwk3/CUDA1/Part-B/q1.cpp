@@ -25,6 +25,8 @@ alloc_sum_result time_sum_arrays(size_t count, size_t blocks, size_t threads) {
         return result;
     }
 
+    cout << "Blocks=" << blocks << "\nThreads/block=" << threads << endl;
+
     auto t0 = high_resolution_clock::now();
     
     float *array1, *array2, *out;
@@ -90,7 +92,7 @@ int main(int const argc, char *argv[]) {
         exit(1);
     }
 
-    cout << "Using array of size: " << elems << "M" << endl;
+    cout << "K=" << elems << "M" << endl;
     elems *= 1e6;
     auto result = time_sum_arrays(elems, 1, 1);
     print_results(result);

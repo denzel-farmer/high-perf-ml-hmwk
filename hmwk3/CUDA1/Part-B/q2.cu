@@ -6,7 +6,7 @@
 using namespace std;
 using namespace std::chrono;
 
-
+// Summing Kernel
 __global__ void SumArrays(const float* A, const float* B, float* C, int N)
 {
     // number of threads accessing together 
