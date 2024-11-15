@@ -15,7 +15,7 @@ OPTIONS   :=  -O3 -lineinfo
 #--maxrregcount=100 --ptxas-options -v 
 
 TAR_FILE_NAME  := YourNameCUDA1.tar
-EXECS :=  c1 c2 c3
+EXECS :=  c1 c2 c3 c3-broken
 all:$(EXECS)
 
 #######################################################################
@@ -34,6 +34,9 @@ c2: c2.cu ImageUtils.o
 
 c3: c3.cu
 	${NVCC} $< -o $@ $(OPTIONS) -lcudnn
+
+c3-broken: c3-broken.cu ImageUtils.o
+	${NVCC} $< ImageUtils.o -o $@ $(OPTIONS) -lcudnn
 
 ImageUtils.o: ImageUtils.cu ImageUtils.h
 	${NVCC} ImageUtils.cu -c -o ImageUtils.o $(OPTIONS)

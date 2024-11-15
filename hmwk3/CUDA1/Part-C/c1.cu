@@ -8,7 +8,7 @@ using namespace std;
 using namespace std::chrono;
 
 
-// TODO should put in image utils once I figure out linking 
+// Because of linking issues, I have trouble defining these in ImageUtils.h
 __host__ __device__ ELEM_TYPE GetFilterSetElement(const FilterSet& filters, int i, int j, int k, int l) {
     return filters.elements[(i * filters.height * filters.width * filters.depth) + (j * filters.height * filters.width) \
         + (k * filters.width) + l];
@@ -21,7 +21,6 @@ __host__ __device__ ELEM_TYPE GetImageElement(const Image &image, int i, int j, 
 __host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM_TYPE value) {
     image.elements[(i * image.height * image.width) + (j * image.width) + k] = value;
 }
-
 
 
 __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
@@ -47,6 +46,7 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
 constexpr int BLOCK_SIZE = 32;
 constexpr int BLOCK_DEPTH = 1;
 
+// Run convolution and return time 
 microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, Image out_image) {
     
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, BLOCK_DEPTH);
@@ -66,10 +66,6 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
 
     cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
-
-    // ELEM_TYPE value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
-    // printf("Value at (%d, %d, %d): %f\n", OUT_Z, OUT_X, OUT_Y, value);
-
     cudaFree(d_in_image.elements);
     cudaFree(d_filters.elements);
     cudaFree(d_out_image.elements);
@@ -77,6 +73,7 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
     return duration_cast<microseconds>(t1-t0);
 }
 
+// Run convolution, if verbose print some number of input and output image elements
 int main(int argc, char* argv[]) {
     int maxprint = 1024*3*1;
     bool verbose = false;
@@ -96,9 +93,10 @@ int main(int argc, char* argv[]) {
 
     Image in_image = GenerateInputImage(C, H, W, padding);
 
-    // if (verbose) {
-    //     PrintImage(in_image, maxprint);
-    // }
+    if (verbose) {
+        cout << "Input image:" << endl;
+        PrintImage(in_image, maxprint);
+    }
 
     // Create filter set 
     int K = 64;
@@ -106,7 +104,7 @@ int main(int argc, char* argv[]) {
     int FH = 3;
 
     FilterSet filters = GenerateFilterSet(K, C, FH, FW);
-    printf("Element at (5, 1, 100, 100) in filters: %f\n", GetFilterSetElement(filters, 5, 1, 100, 100));
+    
     // Create output image
     Image out_image = AllocateHostImage(K, H, W);
     // Perform convolution
@@ -114,6 +112,7 @@ int main(int argc, char* argv[]) {
 
     // Print output image if verbose
     if (verbose) {
+        cout << "Output image:" << endl;
         PrintImage(out_image, maxprint);
     }
     // Print out checksum

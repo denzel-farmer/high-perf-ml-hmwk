@@ -25,6 +25,20 @@
     }                                                        \
   }
 
+// Because of linking issues, I have trouble defining these in ImageUtils.h
+__host__ __device__ ELEM_TYPE GetFilterSetElement(const FilterSet& filters, int i, int j, int k, int l) {
+    return filters.elements[(i * filters.height * filters.width * filters.depth) + (j * filters.height * filters.width) \
+        + (k * filters.width) + l];
+}
+
+__host__ __device__ ELEM_TYPE GetImageElement(const Image &image, int i, int j, int k) {
+    return image.elements[(i * image.height * image.width) + (j * image.width) + k];
+}
+
+__host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM_TYPE value) {
+    image.elements[(i * image.height * image.width) + (j * image.width) + k] = value;
+}
+
 
 
 int main() {
@@ -126,7 +140,7 @@ int main() {
     cudaMalloc(&d_workspace, workspace_size);
 
 
-    const float alpha = 1.0f, beta = 0.0f;
+    const double alpha = 1.0f, beta = 0.0f;
     checkCUDNN(cudnnConvolutionForward(cudnn,
                             &alpha,
                             input_desc,

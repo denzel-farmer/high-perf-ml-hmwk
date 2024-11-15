@@ -5,6 +5,9 @@
 
 using namespace std;
 
+#define ELEM_TYPE float
+#define ELEM_TYPE_CUDNN CUDNN_DATA_FLOAT
+
 constexpr int C = 3;            // Number of input channels
 constexpr int H = 1024;         // Input height
 constexpr int W = 1024;         // Input width
@@ -34,7 +37,7 @@ int main() {
     checkCUDNN(cudnnCreateTensorDescriptor(&input_desc));
     checkCUDNN(cudnnSetTensor4dDescriptor(input_desc,
                                CUDNN_TENSOR_NCHW,
-                               CUDNN_DATA_DOUBLE,
+                               ELEM_TYPE_CUDNN,
                                1, C, H, W));
     
     // Output tensor descriptor
@@ -42,14 +45,14 @@ int main() {
     checkCUDNN(cudnnCreateTensorDescriptor(&output_desc));
     checkCUDNN(cudnnSetTensor4dDescriptor(output_desc,
                                CUDNN_TENSOR_NCHW,
-                               CUDNN_DATA_DOUBLE,
+                               ELEM_TYPE_CUDNN,
                                1, K, H, W));
 
     // Filter descriptor
     cudnnFilterDescriptor_t filter_desc;
     checkCUDNN(cudnnCreateFilterDescriptor(&filter_desc));
     checkCUDNN(cudnnSetFilter4dDescriptor(filter_desc,
-                               CUDNN_DATA_DOUBLE,
+                               ELEM_TYPE_CUDNN,
                                CUDNN_TENSOR_NCHW,
                                K, C, FH, FW));
 
@@ -60,14 +63,7 @@ int main() {
                                     /*stride_h=*/1, /*stride_w=*/1,
                                     /*dilation_h=*/1, /*dilation_w=*/1,
                                     CUDNN_CONVOLUTION,
-                                    CUDNN_DATA_DOUBLE));
-
-    // int N_out, K_out, H_out, W_out;
-    // checkCUDNN(cudnnGetConvolution2dForwardOutputDim(conv_desc,
-    //                                       input_desc,
-    //                                       filter_desc,
-    //                                       &N_out, &K_out, &H_out, &W_out));
-
+                                    ELEM_TYPE_CUDNN));
 
 
     const int max_algos = CUDNN_CONVOLUTION_FWD_ALGO_COUNT;
@@ -97,48 +93,48 @@ int main() {
     void* d_workspace = nullptr;
     cudaMalloc(&d_workspace, workspace_size);
 
-      // Initialize input tensor
-    double *h_input = (double *)malloc(C*H*W*sizeof(double));
+    // Initialize input tensor
+    ELEM_TYPE *h_input = (ELEM_TYPE *)malloc(C*H*W*sizeof(ELEM_TYPE));
     for (int c = 0; c < C; c++) {
       for (int y = 0; y < H; y++) {
           for (int x = 0; x < W; x++) {
-            double value = c * (x + y);
-   
+            ELEM_TYPE value = c * (x + y);
             h_input[(c*H*W) + (y*W) + x] = value;
           }
       }
   }
   
-  double *d_input;
-  cudaMalloc(&d_input, C*H*W*sizeof(double));
-  cudaMemcpy(d_input, h_input, C*H*W*sizeof(double), cudaMemcpyHostToDevice);
+  ELEM_TYPE *d_input;
+  cudaMalloc(&d_input, C*H*W*sizeof(ELEM_TYPE));
+  cudaMemcpy(d_input, h_input, C*H*W*sizeof(ELEM_TYPE), cudaMemcpyHostToDevice);
 
   // Initialize filter descriptor
-  double *h_filter = (double *)malloc(K*C*FH*FW*sizeof(double));
+  ELEM_TYPE *h_filter = (ELEM_TYPE *)malloc(K*C*FH*FW*sizeof(ELEM_TYPE));
     for (int k = 0; k < K; k++) {
       for (int c = 0; c < C; c++) {
           for (int i = 0; i < FH; i++) {
               for (int j = 0; j < FW; j++) {
-                  double value = (c + k)*(i+j);
+                  ELEM_TYPE value = (c + k)*(i+j);
                   h_filter[(k * C*FH*FW) + (c * FH*FW) + (j * FW) + i] = value;
               }
           }
       }
   }
 
-  double *d_filter;
-  cudaMalloc(&d_filter, K*C*FH*FW*sizeof(double));
-  cudaMemcpy(d_filter, h_filter, K*C*FH*FW*sizeof(double), cudaMemcpyHostToDevice);
+  ELEM_TYPE *d_filter;
+  cudaMalloc(&d_filter, K*C*FH*FW*sizeof(ELEM_TYPE));
+  cudaMemcpy(d_filter, h_filter, K*C*FH*FW*sizeof(ELEM_TYPE), cudaMemcpyHostToDevice);
 
   // Create output tensor
-  double *h_output = (double *)malloc(K*H*W*sizeof(double));
-  double *d_output;
-  cudaMalloc(&d_output, K*H*W*sizeof(double));
+  ELEM_TYPE *h_output = (ELEM_TYPE *)malloc(K*H*W*sizeof(ELEM_TYPE));
+  ELEM_TYPE *d_output;
+  cudaMalloc(&d_output, K*H*W*sizeof(ELEM_TYPE));
+  
   // Start timing
   cudaDeviceSynchronize();
   auto start = chrono::high_resolution_clock::now();
 
-  const double alpha = 1.0f, beta = 0.0f;
+  const ELEM_TYPE alpha = 1.0f, beta = 0.0f;
   checkCUDNN(cudnnConvolutionForward(cudnn,
               &alpha,
               input_desc,
@@ -156,10 +152,7 @@ int main() {
   cudaDeviceSynchronize();
   auto end = chrono::high_resolution_clock::now();
   
-  chrono::duration<double, milli> duration = end - start;
-  std::cout << "Convolution forward pass time: " << duration.count() << " ms" << std::endl;
-
-  cudaMemcpy(h_output, d_output, K*H*W*sizeof(double), cudaMemcpyDeviceToHost);
+  cudaMemcpy(h_output, d_output, K*H*W*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
     double checksum = 0;
     for (long elem = 0; elem < K*H*W; elem++) {
@@ -174,6 +167,10 @@ int main() {
     if (cudaStatus != cudaSuccess) {
       std::cerr << "CUDA error: " << cudaGetErrorString(cudaStatus) << std::endl;
     }
+
+  chrono::duration<double, milli> duration = end - start;
+  std::cout << "Convolution forward pass time: " << duration.count() << " ms" << std::endl;
+
 
     // Clean up
     free(h_input);

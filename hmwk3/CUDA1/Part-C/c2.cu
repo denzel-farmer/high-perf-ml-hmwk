@@ -7,8 +7,7 @@
 using namespace std;
 using namespace std::chrono;
 
-
-// TODO should put in image utils once I figure out linking 
+// Because of linking issues, I have trouble defining these in ImageUtils.h
 __host__ __device__ ELEM_TYPE GetFilterSetElement(const FilterSet& filters, int i, int j, int k, int l) {
     return filters.elements[(i * filters.height * filters.width * filters.depth) + (j * filters.height * filters.width) \
         + (k * filters.width) + l];
@@ -22,31 +21,20 @@ __host__ __device__ void SetImageElement(Image &image, int i, int j, int k, ELEM
     image.elements[(i * image.height * image.width) + (j * image.width) + k] = value;
 }
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 #define BLOCK_DEPTH 1
 
 #define FILTER_SIZE 3
 #define IMAGE_CHANNELS 3
 #define IMAGE_SIZE 1024
 
-// // TODO calculate dynamically based on input
-// #define OUT_SIZE 1024
-// #define OUT_DEPTH 64
-
-
-// #define OUT_X 1023
-// #define OUT_Y 1023
-// #define OUT_Z 1
-
-
+// Need slightly bigger tile to load filter
 #define TILE_SIZE (FILTER_SIZE + BLOCK_SIZE - 1)
 #define TILE_DEPTH (IMAGE_CHANNELS)
 
 __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     int tx = threadIdx.x;
     int ty = threadIdx.y;
-    // int bx = blockIdx.x;
-    // int by = blockIdx.y;
 
     int thread_base_x = blockIdx.x * blockDim.x;
     int thread_base_y = blockIdx.y * blockDim.y;
@@ -60,14 +48,7 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
     __shared__ ELEM_TYPE in_tile[TILE_DEPTH][TILE_SIZE][TILE_SIZE];
     __shared__ ELEM_TYPE filter[3][3][3];
 
-    // load in filter
-    int filter_x = FILTER_SIZE - 1 - (tx % FILTER_SIZE);
-    int filter_y = FILTER_SIZE - 1 - (ty % FILTER_SIZE);
-#pragma unroll
-    for (int c = 0; c < IMAGE_CHANNELS; c++) {
-        filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_y, filter_x);
-    }
-    
+    // Load input image into shared memory
 #pragma unroll
     for (int c = 0; c < IMAGE_CHANNELS; ++c) {
 #pragma unroll
@@ -78,6 +59,15 @@ __global__ void Convolution(Image in_image, FilterSet filters, Image out_image){
             }
         }
     }
+
+    // load filter into shared memory
+    int filter_x = FILTER_SIZE - 1 - (tx % FILTER_SIZE);
+    int filter_y = FILTER_SIZE - 1 - (ty % FILTER_SIZE);
+#pragma unroll
+    for (int c = 0; c < IMAGE_CHANNELS; c++) {
+        filter[c][filter_x][filter_y] = GetFilterSetElement(filters, k, c, filter_y, filter_x);
+    }
+
 
     __syncthreads();
 
@@ -90,14 +80,14 @@ ELEM_TYPE output_value = 0;
 #pragma unroll
             for (int i = 0; i < FILTER_SIZE; i++) {
 
-                // F[k, c, F W − 1 − i, F H − 1 − j]
-                // I_0[c, x + i, y + j]
                 int filter_x = FILTER_SIZE - 1 - i;
                 int filter_y = FILTER_SIZE - 1 - j;
                 output_value += filter[c][filter_x][filter_y] * in_tile[c][ty+j][tx+i];
             }
         }
     }
+
+    // Write output value
 
     SetImageElement(out_image, k, in_y, in_x, output_value);
 
@@ -123,10 +113,6 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
 
     cudaMemcpy(out_image.elements, d_out_image.elements, GetElementCount(d_out_image)*sizeof(ELEM_TYPE), cudaMemcpyDeviceToHost);
 
-
-    // ELEM_TYPE value = GetImageElement(out_image, OUT_Z, OUT_X, OUT_Y);
-    // printf("Value at (%d, %d, %d): %f\n", OUT_Z, OUT_X, OUT_Y, value);
-
     cudaFree(d_in_image.elements);
     cudaFree(d_filters.elements);
     cudaFree(d_out_image.elements);
@@ -135,6 +121,7 @@ microseconds ConvolutionalFilter(const Image in_image, const FilterSet filters, 
 }
 
 
+// Run convolution, if verbose print some number of input and output image elements
 int main(int argc, char* argv[]) {
     int maxprint = 1024*3*1;
     bool verbose = false;
@@ -154,9 +141,10 @@ int main(int argc, char* argv[]) {
 
     Image in_image = GenerateInputImage(C, H, W, padding);
 
-    // if (verbose) {
-    //     PrintImage(in_image, maxprint);
-    // }
+    if (verbose) {
+        cout << "Input image:" << endl;
+        PrintImage(in_image, maxprint);
+    }
 
     // Create filter set 
     int K = 64;
@@ -164,7 +152,6 @@ int main(int argc, char* argv[]) {
     int FH = 3;
 
     FilterSet filters = GenerateFilterSet(K, C, FH, FW);
-    printf("Element at (5, 1, 100, 100) in filters: %f\n", GetFilterSetElement(filters, 5, 1, 100, 100));
     // Create output image
     Image out_image = AllocateHostImage(K, H, W);
     // Perform convolution
