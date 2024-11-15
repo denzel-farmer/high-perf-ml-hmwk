@@ -4,7 +4,7 @@
 /// using coalesced memory access.
 /// 
 
-// This kernel is coalseced by having each thread calculate 'strided' elements
+// This kernel is coalesced by having each thread calculate 'strided' elements
 // of the array. So, on the first iteration thread 0 calculates element 0, thread
 // 1 calculates element 1, etc. Then on the second iteration, thread 0 calculates
 // num_threads + 0, thread 1 calculates num_threads + 1, etc. 

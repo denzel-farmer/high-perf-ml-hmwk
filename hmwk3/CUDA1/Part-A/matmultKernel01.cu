@@ -15,12 +15,9 @@
 
 #include "matmultKernel.h"
 
-#define FOOTPRINT_SIZE 32
-
 // By default, use coalesced writing
 //#define NO_COALESCED_WRITE
 
-// TODO add support for footprint size of 64? Must split out separate 'warp size' or similar
 
 #define NUM_THREADS (BLOCK_SIZE*BLOCK_SIZE)
 #define NUM_TILE_ELEMS (FOOTPRINT_SIZE*FOOTPRINT_SIZE)
@@ -29,49 +26,11 @@
 // Number of tile rows loaded at once
 #define CONCUR_ROWS (NUM_THREADS/FOOTPRINT_SIZE)
 
-// The type Matrix is really a MATRIX DESCRIPTOR. 
-// Matrices are stored in row major order:
-//       M[row,col] = *(M.elements + row * M.stride + col)
-//
-// A sub matrix is not copied but allocated in the full matrix.
-//
-// This requires the stride of the full matrix to properly get to the
-// next row of the sub matrix (a block).
-//
-// Stride is the width in bytes from one element of the larger matrix 
-// to the element in the same column but one row down.
-
-
-
-  // Block i,j computes on A/B/C i*FP_SIZE,j*FP_SIZE -> (i+1)*FP_SIZE-1,(j+1)*FP_SIZE-1
-  
-  // Example: inputs are 64x64, block size is 32x32 
-  // Block 0,0 works on A/B/C [0,0] to [1*32-1,1*32-1] -> [0,0] to [31, 31]
-  // Block 0,1 works on A/B/C [0*32,1*32] to [1*32-1, 2*32-1] -> [0,32] to [31, 63]
-
-  // Within block 0,0 thread 0,0 computes result values C[0,0],C[0,1],C[1,0],C[1,1]
-  // [0,0]: A[0,0]*B[0,0] + A[0,1]*B[1,0] + A[0,2]*B[2,0]
-  // [0,1]: 
-
-  // Phase 1: 
-  // - Block 0,0 loads A tile 0,0 and B tile 0,0 -> computes partial results for each thread 
-  // - Block 0,1 loads A tile 0,0 and B tile 0,1 -> computes partial results for each thread 
-  // ....
-  // Phase 2:
-  // - Block 0,0 loads A tile 0,1 and B tile 1,0 -> adds to partial result for each thread
-  // - Block 0,1 loads A tile 0,1 and B tile 1,1 -> add to partial result for each thread
-  // ...
-  
-  // Overall structure of tiles and blocks
-  // Total of WIDTH/TILE_SIZE = WIDTH/BLOCK_SIZE phases
-  // In phase n:
-    // Block 0,0 loads A tile 0,n and B tile n,0
-    // Block 0,1 loads A tile 0,n and B tile n,1
-    // Block i,j loads A tile i,n and B tile n,j
-
-  // Within block,phase given input tiles A_tile and B_tile 
-    // Each thread loads one lement of tile, block threads should coalesce loading rows from A_tile and B_tile 
-    // Split tile into 2x2 chunks, each thread works on a chunk
+// Coalseced matrix multiplication kernel 
+// Splits multiplication into three rounds, for each phase 
+// 1. load A and B into shared memory (in coalescing-maximizing order)
+// 2. compute C values (in naive order)
+// 3. write C values to global memory (in coalescing-maximizing order)
 
 __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
 
@@ -80,8 +39,11 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
   // Putting these into registers speeds access.
   int thread_col = threadIdx.x;
   int thread_row = threadIdx.y;
-  // Consec_id = thread_col + thread_row * BLOCK_SIZE
+  
+  // 'Consuective for the current thread id' in the order that maximizes coalescing
   int consec_id = thread_col + thread_row * BLOCK_SIZE;
+
+  // Which tile the thread should load coalesced (different than the tile it calculates)
   int tile_load_row = (consec_id / FOOTPRINT_SIZE);
   int tile_load_col = (consec_id % FOOTPRINT_SIZE);
   
@@ -93,18 +55,16 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
   int block_row = blockIdx.y;
   int block_col = blockIdx.x;
 
+  // Output tile for this thread 
   float Cvalue[2][2] = {{0.0f, 0.0f}, {0.0f, 0.0f}};
 
-  // For each phase 
+  // For each tiling phase 
   for (int phase = 0; phase < (A.width / FOOTPRINT_SIZE); ++phase){
     // Get descriptors for Asub and Bsub
-    // Tile i,j has corners [i*BLOCK_SIZE, j*BLOCK_SIZE] and [(i+1)*BLOCK_SIZE-1, (j+1)*BLOCK_SIZE-1]
-    // Asub is tile (Block.x, phase) -> starts at [Block.x*BLOCK_SIZE, phase*BLOCK_SIZE]
-    // Index into elements is elements + row*stride + col -> (Block.x*BLOCK_SIZE)*A.stride + phase*BLOCK_SIZE
-    //
     Asub = &A.elements[A.stride * FOOTPRINT_SIZE * block_row + FOOTPRINT_SIZE * phase];
     Bsub = &B.elements[B.stride * FOOTPRINT_SIZE * phase + FOOTPRINT_SIZE * block_col];
 
+    // 32x32 shared memory for A and B inputs
     __shared__ float shared_A[FOOTPRINT_SIZE][FOOTPRINT_SIZE];
     __shared__ float shared_B[FOOTPRINT_SIZE][FOOTPRINT_SIZE];
 
@@ -124,9 +84,8 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
     // Synchronize to ensure all elements are read
     __syncthreads();
 
-    // Do an inproduct of one row of shared_A and one col of shared_B
+    // Do an inproduct of four elements from arow of shared_A and four elements from  col of shared_B
     // computing 4 Cvalues by accumulation
-    // TODO allow for variable chunk size?
 #pragma unroll
     for(int e=0; e<FOOTPRINT_SIZE; ++e) {
       Cvalue[0][0] += shared_A[tile_calc_row][e] * shared_B[e][tile_calc_col];
@@ -140,11 +99,15 @@ __global__ void MatMulKernel(Matrix A, Matrix B, Matrix C) {
     __syncthreads();
   }
   
+
+  // Write outputs to global memory
   Csub = &C.elements[C.stride * FOOTPRINT_SIZE * block_row + FOOTPRINT_SIZE * block_col];
 
 
+  // Experimented with two options: writing directly to global memory or merging in shared memory then writing 
   #ifndef NO_COALESCED_WRITE
     // Option 1: coalesced--each thread writes its own value to shared memory, then writes coalesced to global memory
+    // Option 1 experimentally is faster 
     __shared__ float shared_C[FOOTPRINT_SIZE][FOOTPRINT_SIZE];
 
     // All threads write their values to shared memory

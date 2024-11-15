@@ -53,6 +53,9 @@ vecadd01 : vecadd.cu vecaddKernel.h vecaddKernel01.o timer.o
 
 #######################################################################
 ## Provided Kernel
+# Part A, Q3: The provided makefile worked as provided. It compiles
+# matmult00, which uses matmultKernel00.cu -- a tiled matrix multiplication
+# kernel with a 16x16 footprint
 matmultKernel00.o : matmultKernel00.cu matmultKernel.h 
 	${NVCC} $< -c -o $@ $(OPTIONS)
 
